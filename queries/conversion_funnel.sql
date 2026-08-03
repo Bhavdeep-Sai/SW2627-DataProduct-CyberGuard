@@ -1,20 +1,8 @@
--- queries/conversion_funnel.sql
--- Conversion Funnel: daily signup → email verification → first purchase pipeline.
--- Uses FILTER (WHERE ...) for conditional counting in a single scan.
--- Covers the trailing 90 days to give a meaningful conversion window.
--- conversion_pct = percentage of sign-ups who completed their first purchase.
-
-SELECT
-    DATE_TRUNC('day', u.created_at)::DATE                             AS signup_date,
-    COUNT(*)                                                          AS signups,
-    COUNT(*) FILTER (WHERE u.email_verified_at IS NOT NULL)           AS email_verified,
-    COUNT(*) FILTER (WHERE u.first_purchase_at IS NOT NULL)           AS first_purchase,
-    ROUND(
-        100.0 * COUNT(*) FILTER (WHERE u.first_purchase_at IS NOT NULL)
-              / NULLIF(COUNT(*), 0),
-        1
-    )                                                                 AS conversion_pct
-FROM users u
-WHERE u.created_at >= NOW() - INTERVAL '90 days'
-GROUP BY DATE_TRUNC('day', u.created_at)
-ORDER BY signup_date DESC;
+-- CyberGuard Authentication Funnel Query
+-- Analyzes progression from Total Logins -> Successful Logins -> High Risk Events -> Critical Alerts
+SELECT 
+    COUNT(*) as total_logins,
+    SUM(CASE WHEN status = 'Success' THEN 1 ELSE 0 END) as successful_logins,
+    SUM(CASE WHEN risk_score >= 70 THEN 1 ELSE 0 END) as high_risk_events,
+    SUM(CASE WHEN severity = 'CRITICAL' THEN 1 ELSE 0 END) as critical_incidents
+FROM auth_events;
