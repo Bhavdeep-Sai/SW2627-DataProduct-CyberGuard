@@ -1,3 +1,0 @@
-✓ Data successfully processed
-✓ Rows processed: 1200
-✓ Output saved to output/processed.csv
