@@ -4,48 +4,40 @@ CyberGuard Enterprise SOC UI Styling & Glassmorphic Dashboard Components
 import streamlit as st
 
 def apply_soc_theme():
-    """Apply CrowdStrike / Sentinel inspired dark glassmorphism styling."""
+    """Apply CrowdStrike / Sentinel inspired responsive glassmorphic styling supporting Light & Dark themes."""
     st.markdown("""
     <style>
-        /* Dark SOC Background */
+        /* Base typography & layout */
         .stApp {
-            background-color: #090d16;
-            color: #f1f5f9;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
         
-        /* Metric Glass Card Styling */
+        /* Metric Glass Card Styling - Adaptive Theme */
         div[data-testid="stMetric"] {
-            background: rgba(18, 24, 41, 0.85);
-            border: 1px solid rgba(56, 189, 248, 0.2);
+            background: var(--secondary-background-color, rgba(18, 24, 41, 0.85));
+            border: 1px solid rgba(56, 189, 248, 0.3);
             border-radius: 12px;
             padding: 16px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
             backdrop-filter: blur(8px);
             transition: transform 0.2s ease, border-color 0.2s ease;
         }
         div[data-testid="stMetric"]:hover {
             transform: translateY(-2px);
-            border-color: rgba(56, 189, 248, 0.5);
+            border-color: rgba(56, 189, 248, 0.6);
         }
         div[data-testid="stMetricValue"] {
             font-family: 'Outfit', sans-serif;
             font-weight: 700;
-            color: #38bdf8 !important;
+            color: #0284c7 !important;
             font-size: 1.8rem;
         }
         div[data-testid="stMetricLabel"] {
-            color: #94a3b8 !important;
             font-weight: 500;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             font-size: 0.75rem;
-        }
-
-        /* Sidebar Styling */
-        section[data-testid="stSidebar"] {
-            background-color: #0d1322 !important;
-            border-right: 1px solid #1e293b;
+            opacity: 0.85;
         }
 
         /* Headings */
@@ -55,7 +47,7 @@ def apply_soc_theme():
         }
         
         .soc-header {
-            background: linear-gradient(90deg, #38bdf8 0%, #818cf8 100%);
+            background: linear-gradient(90deg, #0284c7 0%, #6366f1 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             font-weight: 800;
@@ -96,10 +88,10 @@ def apply_soc_theme():
 def render_header():
     """Render top enterprise brand header."""
     st.markdown("""
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0px; border-bottom: 1px solid #1e293b; margin-bottom: 20px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0px; border-bottom: 1px solid rgba(148, 163, 184, 0.2); margin-bottom: 20px;">
         <div>
             <h1 class="soc-header" style="margin: 0; font-size: 2.2rem;">🛡️ CYBERGUARD SOC ENTERPRISE</h1>
-            <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 0.95rem;">
+            <p style="opacity: 0.8; margin: 4px 0 0 0; font-size: 0.95rem;">
                 Real-Time AI Authentication Behavioral Threat Analytics & Risk Engine
             </p>
         </div>
@@ -110,3 +102,4 @@ def render_header():
         </div>
     </div>
     """, unsafe_allow_html=True)
+
