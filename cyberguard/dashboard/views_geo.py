@@ -24,7 +24,7 @@ def render_geo_view(df: pd.DataFrame):
             color_discrete_map={"Success": "#10b981", "Failed": "#ef4444"},
             projection="natural earth"
         )
-        fig_map.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        fig_map.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_map, use_container_width=True)
 
     with col2:
@@ -38,7 +38,7 @@ def render_geo_view(df: pd.DataFrame):
             title="Failed Login Intensity by Country",
             color_continuous_scale="Reds"
         )
-        fig_choropleth.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        fig_choropleth.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_choropleth, use_container_width=True)
 
     st.markdown("---")

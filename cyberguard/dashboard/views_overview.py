@@ -46,7 +46,7 @@ def render_overview_view(df: pd.DataFrame):
             labels={"value": "Login Volume", "timestamp": "Timestamp"},
             color_discrete_map={"Success": "#10b981", "Failed": "#ef4444"}
         )
-        fig_time.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        fig_time.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_time, use_container_width=True)
 
     with col_right:
@@ -65,7 +65,7 @@ def render_overview_view(df: pd.DataFrame):
             },
             hole=0.4
         )
-        fig_pie.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_pie, use_container_width=True)
 
     # 4. Top Risky Users & Devices Table

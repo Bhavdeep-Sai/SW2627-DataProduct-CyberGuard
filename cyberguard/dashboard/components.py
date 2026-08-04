@@ -14,12 +14,11 @@ def apply_soc_theme():
         
         /* Metric Glass Card Styling - Adaptive Theme */
         div[data-testid="stMetric"] {
-            background: var(--secondary-background-color, rgba(18, 24, 41, 0.85));
+            background-color: var(--secondary-background-color) !important;
             border: 1px solid rgba(56, 189, 248, 0.3);
             border-radius: 12px;
             padding: 16px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
             transition: transform 0.2s ease, border-color 0.2s ease;
         }
         div[data-testid="stMetric"]:hover {
@@ -32,12 +31,17 @@ def apply_soc_theme():
             color: #0284c7 !important;
             font-size: 1.8rem;
         }
-        div[data-testid="stMetricLabel"] {
-            font-weight: 500;
+        div[data-testid="stMetricLabel"],
+        div[data-testid="stMetricLabel"] p,
+        div[data-testid="stMetricLabel"] label,
+        div[data-testid="stMetricLabel"] span,
+        div[data-testid="stMetricLabel"] div {
+            color: var(--text-color) !important;
+            font-weight: 600 !important;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             font-size: 0.75rem;
-            opacity: 0.85;
+            opacity: 0.85 !important;
         }
 
         /* Headings */

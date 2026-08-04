@@ -43,7 +43,7 @@ def render_anomalies_view(df: pd.DataFrame):
                 "INFO": "#3b82f6"
             }
         )
-        fig_scatter.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        fig_scatter.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_scatter, use_container_width=True)
 
     with col_right:
@@ -55,7 +55,7 @@ def render_anomalies_view(df: pd.DataFrame):
             title="Anomaly Score Distribution Density",
             color_discrete_sequence=["#38bdf8"]
         )
-        fig_hist.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        fig_hist.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_hist, use_container_width=True)
 
     st.markdown("---")
