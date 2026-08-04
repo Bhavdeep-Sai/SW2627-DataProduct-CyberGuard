@@ -1,222 +1,163 @@
-import os
-import sqlite3
+from __future__ import annotations
+
+from pathlib import Path
+import json
+
 import pandas as pd
-import numpy as np
-import logging
-from datetime import datetime
-from dotenv import load_dotenv
 
-# 1. Load Environment Variables & Configuration
-load_dotenv()
 
-DATABASE_PATH = os.getenv("DATABASE_PATH", "data/cyberguard.db")
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-LOG_FILE = "logs/pipeline.log"
+BASE_DIR = Path(__file__).resolve().parents[1]
+RAW_DIR = BASE_DIR / "data" / "raw"
+OUTPUT_DIR = BASE_DIR / "output"
 
-# Create logs and data directories if they don't exist
-os.makedirs("logs", exist_ok=True)
-os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+DATE_FORMAT = "%Y-%m-%d"
+EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+PHONE_PATTERN = r"^\d{10}$"
+EXPECTED_COLUMNS = {
+    "customer_id",
+    "age",
+    "price",
+    "birth_date",
+    "email",
+    "phone",
+    "start_date",
+    "end_date",
+    "campaign_start_date",
+    "campaign_end_date",
+}
 
-# 2. Setup Logging
-numeric_level = getattr(logging, LOG_LEVEL, logging.INFO)
-logging.basicConfig(
-    level=numeric_level,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler()
-    ]
-)
 
-# 3. Main Functions
-
-def ingest_data(filepath):
-    """
-    Ingest raw authentication logs from a CSV file.
-    
-    Args:
-        filepath (str): Path to the raw logs CSV file.
-        
-    Returns:
-        pd.DataFrame: Raw log DataFrame.
-        
-    Raises:
-        FileNotFoundError: If the input file does not exist.
-    """
-    logging.info(f"Starting data ingestion from {filepath}...")
-    try:
-        df = pd.read_csv(filepath)
-        logging.info(f"Successfully ingested {len(df)} rows from {filepath}")
-        return df
-    except FileNotFoundError as e:
-        logging.error(f"Ingestion failed: File not found at {filepath}")
-        raise e
-    except Exception as e:
-        logging.error(f"Error during ingestion: {str(e)}")
-        raise e
-
-def process_data(df):
-    """
-    Process raw logs to calculate security risk scores.
-    
-    Heuristics applied:
-    - Base risk = 10.
-    - If login status is 'Failed', add 30.
-    - If user is sensitive ('admin', 'root', 'db_backup') and status is 'Failed', add 20.
-    - If login country is suspicious ('RU', 'CN', 'KP', 'IR'), add 15.
-    - Detect Brute Force: If an IP has > 5 failed logins within the dataset, add 25 to all attempts from that IP.
-    - Detect Travel Anomaly: If a user has logged in from multiple countries, add 20 to all logins.
-    
-    Risk scores are capped between 0 and 100.
-    
-    Args:
-        df (pd.DataFrame): Raw log DataFrame with columns:
-            - timestamp (str/datetime)
-            - username (str)
-            - ip_address (str)
-            - country (str)
-            - status (str)
-            - device_type (str)
-            
-    Returns:
-        pd.DataFrame: Transformed DataFrame including a 'risk_score' column.
-    """
-    logging.info("Starting behavioral analysis and risk scoring...")
-    
-    if df.empty:
-        logging.warning("Empty DataFrame passed to process_data.")
-        df['risk_score'] = []
-        return df
-
-    # Create a copy to prevent SettingWithCopyWarning
-    processed_df = df.copy()
-    processed_df['timestamp'] = pd.to_datetime(processed_df['timestamp'])
-    
-    # Initialize base risk
-    processed_df['risk_score'] = 10.0
-    
-    # 1. Failed logins penalty
-    processed_df.loc[processed_df['status'] == 'Failed', 'risk_score'] += 30
-    
-    # 2. Sensitive account failures
-    sensitive_users = ['admin', 'root', 'db_backup']
-    sensitive_failure_mask = (processed_df['status'] == 'Failed') & (processed_df['username'].isin(sensitive_users))
-    processed_df.loc[sensitive_failure_mask, 'risk_score'] += 20
-    
-    # 3. Suspicious country access
-    suspicious_countries = ['RU', 'CN', 'KP', 'IR']
-    processed_df.loc[processed_df['country'].isin(suspicious_countries), 'risk_score'] += 15
-    
-    # 4. Brute force detection (aggregate fails per IP)
-    failed_counts_by_ip = processed_df[processed_df['status'] == 'Failed'].groupby('ip_address').size()
-    brute_force_ips = failed_counts_by_ip[failed_counts_by_ip > 5].index
-    processed_df.loc[processed_df['ip_address'].isin(brute_force_ips), 'risk_score'] += 25
-    
-    # 5. Impossible Travel Anomaly (User logging in from multiple countries)
-    user_country_counts = processed_df.groupby('username')['country'].nunique()
-    travel_anomaly_users = user_country_counts[user_country_counts > 1].index
-    processed_df.loc[processed_df['username'].isin(travel_anomaly_users), 'risk_score'] += 20
-    
-    # Cap risk score between 0 and 100
-    processed_df['risk_score'] = np.clip(processed_df['risk_score'], 0, 100)
-    
-    # Convert timestamp back to string for database compatibility
-    processed_df['timestamp'] = processed_df['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
-    
-    logging.info(f"Processed {len(processed_df)} logs. High risk events (Score >= 70): {len(processed_df[processed_df['risk_score'] >= 70])}")
-    return processed_df
-
-def output_results(df, db_path):
-    """
-    Persist processed logs and aggregate risk profiles in a SQLite database.
-    
-    Args:
-        df (pd.DataFrame): Processed DataFrame with risk scores.
-        db_path (str): Filepath to the SQLite database.
-    """
-    logging.info(f"Persisting results to SQLite database at {db_path}...")
-    
-    conn = None
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # 1. Create table for individual auth events
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS auth_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT,
-                username TEXT,
-                ip_address TEXT,
-                country TEXT,
-                status TEXT,
-                device_type TEXT,
-                risk_score REAL
-            )
-        """)
-        
-        # 2. Create table for aggregated user risk scores
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS user_risk_profiles (
-                username TEXT PRIMARY KEY,
-                total_logins INTEGER,
-                failed_logins INTEGER,
-                max_risk_score REAL,
-                avg_risk_score REAL,
-                last_updated TEXT
-            )
-        """)
-        
-        conn.commit()
-        
-        # Insert events (replace table contents or append; we will replace for simple runs)
-        # In a real environment, we'd append or insert unique events.
-        df.to_sql("auth_events", conn, if_exists="replace", index=False)
-        logging.info(f"Inserted {len(df)} records into auth_events table.")
-        
-        # Calculate and update user risk profiles
-        profiles_df = df.groupby('username').agg(
-            total_logins=('status', 'count'),
-            failed_logins=('status', lambda x: int((x == 'Failed').sum())),
-            max_risk_score=('risk_score', 'max'),
-            avg_risk_score=('risk_score', 'mean')
-        ).reset_index()
-        
-        profiles_df['last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        profiles_df.to_sql("user_risk_profiles", conn, if_exists="replace", index=False)
-        logging.info(f"Calculated and saved {len(profiles_df)} user risk profiles.")
-        
-        conn.commit()
-        print(f"SUCCESS: Pipeline run completed. Database updated at: {db_path}")
-        
-    except sqlite3.Error as e:
-        logging.error(f"Database error: {str(e)}")
-        raise e
-    finally:
-        if conn:
-            conn.close()
-            logging.info("Database connection closed.")
-
-# 4. Main Execution
-if __name__ == "__main__":
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="CyberGuard SOC Logs Processing Pipeline")
-    parser.add_argument(
-        "--input", 
-        type=str, 
-        default="data/raw/auth_logs.csv", 
-        help="Path to raw logs CSV"
+def build_sample_data() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "customer_id": [101, 102, None, 104, 105, 106],
+            "age": [29, 41, 152, 33, -2, 66],
+            "price": [120.50, -15.00, 250.00, 0.00, 89.99, 45.00],
+            "birth_date": ["1995-02-10", "2050-01-01", "1980-06-15", "1979-11-20", "1910-05-30", "2001-08-09"],
+            "email": ["alice@example.com", "bob.example.com", "carol@example.org", None, "ella@sample", "frank@example.com"],
+            "phone": ["1234567890", "12345", "0987654321", "1112223333", "phone12345", None],
+            "start_date": ["2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01", "2025-05-01", "2025-06-01"],
+            "end_date": ["2025-01-31", "2025-01-15", "2025-03-20", "2025-03-15", "2025-06-10", "2025-05-20"],
+            "campaign_start_date": ["2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01", "2025-05-01", "2025-06-01"],
+            "campaign_end_date": ["2025-01-31", "2025-01-15", "2025-02-20", "2025-03-15", "2025-04-30", "2025-05-20"],
+        }
     )
-    args = parser.parse_args()
-    
-    try:
-        logging.info("=== Starting CyberGuard Pipeline Execution ===")
-        raw_data = ingest_data(args.input)
-        processed_data = process_data(raw_data)
-        output_results(processed_data, DATABASE_PATH)
-        logging.info("=== Pipeline Execution Finished Successfully ===")
-    except Exception as e:
-        logging.error(f"Fatal error in pipeline: {str(e)}")
-        print(f"ERROR: Pipeline failed. See {LOG_FILE} for details.")
-        exit(1)
+
+
+def load_data() -> pd.DataFrame:
+    candidate = RAW_DIR / "sample.csv"
+    if candidate.exists():
+        df = pd.read_csv(candidate)
+        if EXPECTED_COLUMNS.issubset(df.columns):
+            return df
+
+    return build_sample_data()
+
+
+def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    result = df.copy()
+
+    for column in ["birth_date", "start_date", "end_date", "campaign_start_date", "campaign_end_date"]:
+        if column in result.columns:
+            result[column] = pd.to_datetime(result[column], format=DATE_FORMAT, errors="coerce")
+
+    for column in ["age", "price", "customer_id"]:
+        if column in result.columns:
+            result[column] = pd.to_numeric(result[column], errors="coerce")
+
+    return result
+
+
+def rule_summary(rule_name: str, mask: pd.Series) -> dict:
+    failed_mask = ~mask.fillna(False)
+    return {
+        "rule": rule_name,
+        "passed_rows": int(mask.sum()),
+        "failed_rows": int(failed_mask.sum()),
+        "pass_rate": round(float(mask.mean()) if len(mask) else 0.0, 4),
+    }
+
+
+def validate_data(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    result = df.copy()
+    report: dict[str, object] = {}
+
+    result["valid_age"] = result["age"].between(0, 150, inclusive="both")
+    result["valid_price"] = result["price"].ge(0)
+    result["valid_birth_date"] = result["birth_date"].between(pd.Timestamp("1920-01-01"), pd.Timestamp.now())
+    result["valid_customer_id"] = result["customer_id"].notna()
+    result["valid_email_format"] = result["email"].str.contains(EMAIL_PATTERN, na=False, regex=True)
+    result["valid_phone"] = result["phone"].astype("string").str.match(PHONE_PATTERN, na=False)
+    result["valid_date_order"] = result["end_date"].ge(result["start_date"])
+    result["valid_campaign_date_order"] = result["campaign_end_date"].ge(result["campaign_start_date"])
+
+    report["valid_age"] = rule_summary("valid_age", result["valid_age"])
+    report["valid_price"] = rule_summary("valid_price", result["valid_price"])
+    report["valid_birth_date"] = rule_summary("valid_birth_date", result["valid_birth_date"])
+    report["valid_customer_id"] = rule_summary("valid_customer_id", result["valid_customer_id"])
+    report["valid_email_format"] = rule_summary("valid_email_format", result["valid_email_format"])
+    report["valid_phone"] = rule_summary("valid_phone", result["valid_phone"])
+    report["valid_date_order"] = rule_summary("valid_date_order", result["valid_date_order"])
+    report["valid_campaign_date_order"] = rule_summary("valid_campaign_date_order", result["valid_campaign_date_order"])
+
+    validation_columns = [
+        "valid_age",
+        "valid_price",
+        "valid_birth_date",
+        "valid_customer_id",
+        "valid_email_format",
+        "valid_phone",
+        "valid_date_order",
+        "valid_campaign_date_order",
+    ]
+
+    result["passes_all_checks"] = result[validation_columns].all(axis=1)
+    report["validation_columns_used"] = validation_columns
+    report["records_total"] = int(len(result))
+    report["records_passed"] = int(result["passes_all_checks"].sum())
+    report["records_failed"] = int((~result["passes_all_checks"]).sum())
+    report["failed_record_ids"] = result.loc[~result["passes_all_checks"], "customer_id"].dropna().astype(int).tolist()
+
+    return result, report
+
+
+def write_validation_outputs(df: pd.DataFrame, report: dict) -> None:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    failures = df[~df["passes_all_checks"]].copy()
+    failures.to_csv(OUTPUT_DIR / "validation_failures.csv", index=False)
+
+    report_payload = {
+        "summary": {
+            "records_total": report["records_total"],
+            "records_passed": report["records_passed"],
+            "records_failed": report["records_failed"],
+            "validation_columns_used": report["validation_columns_used"],
+        },
+        "rules": {
+            key: value
+            for key, value in report.items()
+            if key not in {"records_total", "records_passed", "records_failed", "validation_columns_used", "failed_record_ids"}
+        },
+        "failed_record_ids": report["failed_record_ids"],
+    }
+
+    with open(OUTPUT_DIR / "validation_report.json", "w", encoding="utf-8") as handle:
+        json.dump(report_payload, handle, indent=2, default=str)
+
+
+def main() -> None:
+    df = normalize_dataframe(load_data())
+    validated_df, report = validate_data(df)
+    write_validation_outputs(validated_df, report)
+
+    print(f"Records: {report['records_total']}")
+    print(f"Passed: {report['records_passed']}")
+    print(f"Failed: {report['records_failed']}")
+    print(f"Failures saved to: {OUTPUT_DIR / 'validation_failures.csv'}")
+    print(f"Validation report saved to: {OUTPUT_DIR / 'validation_report.json'}")
+    print(f"Clean records ready for analysis: {int(validated_df['passes_all_checks'].sum())}")
+
+
+if __name__ == "__main__":
+    main()
