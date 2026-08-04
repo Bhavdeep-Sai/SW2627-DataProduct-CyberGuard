@@ -5,14 +5,15 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from cyberguard.dashboard.components import render_section_title
 
 def render_geo_view(df: pd.DataFrame):
-    st.subheader("🌍 Geographical Threat Intelligence & Impossible Travel Map")
+    render_section_title("Geographical Threat Intelligence & Impossible Travel Map", "geo")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### 🗺️ Global Authentication Origin Map")
+        render_section_title("Global Authentication Origin Map", "geo")
         fig_map = px.scatter_geo(
             df,
             lat="latitude",
@@ -28,7 +29,7 @@ def render_geo_view(df: pd.DataFrame):
         st.plotly_chart(fig_map, use_container_width=True)
 
     with col2:
-        st.markdown("#### 🚩 Failed Authentications Heatmap by Country")
+        render_section_title("Failed Authentications Heatmap by Country", "incidents")
         failed_df = df[df["status"] == "Failed"].groupby("country").size().reset_index(name="failed_logins")
         fig_choropleth = px.choropleth(
             failed_df,
@@ -44,7 +45,7 @@ def render_geo_view(df: pd.DataFrame):
     st.markdown("---")
 
     # Impossible Travel Table & Speed Breakdown
-    st.markdown("### ✈️ Flagged Impossible Travel Velocity Incidents")
+    render_section_title("Flagged Impossible Travel Velocity Incidents", "plane")
     travel_df = df[df.get("flag_impossible_travel", False) == True].sort_values(by="geo_speed_kmh", ascending=False)
     if not travel_df.empty:
         st.dataframe(
@@ -56,3 +57,4 @@ def render_geo_view(df: pd.DataFrame):
         )
     else:
         st.info("No impossible travel velocity incidents flagged in current dataset.")
+
